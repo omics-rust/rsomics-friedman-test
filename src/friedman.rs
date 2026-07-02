@@ -83,7 +83,15 @@ pub fn friedman(matrix: &Matrix) -> Result<FriedmanResult> {
     let q = (12.0 / (kf * nf * (kf + 1.0)) * ssbn - 3.0 * nf * (kf + 1.0)) / c;
 
     let df = k - 1;
-    let p = chi2_sf(df as f64, q);
+    // Every block fully tied (zero within-block variance) drives the tie
+    // correction `c` to zero, and the statistic to 0/0 = NaN. SciPy reports the
+    // test as (nan, nan) here; propagate NaN rather than feeding it to the
+    // survival function, whose continued fraction would never converge on NaN.
+    let p = if q.is_finite() {
+        chi2_sf(df as f64, q)
+    } else {
+        f64::NAN
+    };
 
     Ok(FriedmanResult { q, df, p })
 }
@@ -142,5 +150,34 @@ mod tests {
     fn rejects_nan() {
         let m = mat(vec![vec![1.0, f64::NAN, 3.0], vec![1.0, 2.0, 3.0]]);
         assert!(friedman(&m).is_err());
+    }
+
+    #[test]
+    fn every_block_tied_yields_nan_not_hang() {
+        // Constant across each block → tie correction c = 0 → SciPy (nan, nan).
+        let m = mat(vec![
+            vec![5.0, 5.0, 5.0],
+            vec![2.0, 2.0, 2.0],
+            vec![9.0, 9.0, 9.0],
+        ]);
+        let r = friedman(&m).unwrap();
+        assert!(r.q.is_nan(), "Q should be NaN, got {}", r.q);
+        assert!(r.p.is_nan(), "p should be NaN, got {}", r.p);
+        assert_eq!(r.df, 2);
+    }
+
+    #[test]
+    fn partial_ties_stay_finite() {
+        // Rows [1,1,2],[3,2,2],[1,2,3]: some ties per block but c > 0.
+        // SciPy 1.17.1 friedmanchisquare → statistic 1.4, pvalue 0.4965853037914103.
+        let m = mat(vec![
+            vec![1.0, 1.0, 2.0],
+            vec![3.0, 2.0, 2.0],
+            vec![1.0, 2.0, 3.0],
+        ]);
+        let r = friedman(&m).unwrap();
+        close(r.q, 1.399_999_999_999_997, 1e-12);
+        close(r.p, 0.496_585_303_791_410_3, 1e-12);
+        assert_eq!(r.df, 2);
     }
 }

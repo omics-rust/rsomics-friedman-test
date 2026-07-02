@@ -1,6 +1,6 @@
 [package]
 name = "rsomics-friedman-test"
-version = "0.1.0"
+version = "0.1.1"
 description = "Friedman chi-square test for repeated measures — scipy.stats.friedmanchisquare equivalent, value-exact"
 edition = "2024"
 rust-version = "1.91"

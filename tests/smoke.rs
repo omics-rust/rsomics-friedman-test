@@ -89,3 +89,18 @@ fn rejects_two_treatments() {
     std::fs::remove_file(&path).ok();
     assert!(!out.status.success());
 }
+
+/// Zero within-block variance used to hang forever in the survival-function
+/// continued fraction. The binary must terminate and report NaN like SciPy.
+#[test]
+fn all_tied_terminates_with_nan() {
+    let path = write_temp("5\t5\t5\n2\t2\t2\n9\t9\t9\n");
+    let out = Command::new(bin()).arg(&path).output().unwrap();
+    std::fs::remove_file(&path).ok();
+    assert!(out.status.success());
+    let s = String::from_utf8(out.stdout).unwrap();
+    let parts: Vec<&str> = s.trim().split('\t').collect();
+    assert_eq!(parts.len(), 3, "got {s:?}");
+    assert_eq!(parts[0], "NaN", "Q field should be NaN, got {s:?}");
+    assert_eq!(parts[2], "NaN", "p field should be NaN, got {s:?}");
+}

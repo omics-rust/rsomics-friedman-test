@@ -18,6 +18,8 @@ struct Expected {
     p: f64,
 }
 
+// `all_tied` has zero within-block variance in every block; SciPy 1.17.1 reports
+// (nan, nan) there, and a NaN Q/p is the assertion (not a relative-error match).
 const EXPECTED: &[Expected] = &[
     Expected {
         name: "hand_ties",
@@ -43,6 +45,18 @@ const EXPECTED: &[Expected] = &[
         df: 4,
         p: 0.728_988_473_840_503_5,
     },
+    Expected {
+        name: "partial_ties",
+        q: 1.399_999_999_999_997,
+        df: 2,
+        p: 0.496_585_303_791_410_3,
+    },
+    Expected {
+        name: "all_tied",
+        q: f64::NAN,
+        df: 2,
+        p: f64::NAN,
+    },
 ];
 
 fn rel(got: f64, want: f64) -> f64 {
@@ -59,6 +73,13 @@ fn golden_matches_scipy() {
         let r = friedman(&matrix).expect("friedman");
 
         assert_eq!(r.df, e.df, "{}: df", e.name);
+
+        if e.q.is_nan() {
+            assert!(r.q.is_nan(), "{}: Q should be NaN, got {}", e.name, r.q);
+            assert!(r.p.is_nan(), "{}: p should be NaN, got {}", e.name, r.p);
+            continue;
+        }
+
         let qr = rel(r.q, e.q);
         assert!(
             qr <= 1e-12,
